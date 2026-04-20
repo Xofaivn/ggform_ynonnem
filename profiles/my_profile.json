@@ -1,0 +1,15 @@
+{
+  "form_url": "https://forms.gle/yg8u5V8h3oLQjK89A",
+  "n_submissions": 1,
+  "headless": false,
+  "form_language": "auto",
+  "randomization_level": 3,
+  "rating_direction": "neutral",
+  "delay_min": 1.0,
+  "delay_max": 3.0,
+  "no_submit": true,
+  "date_start": "2020-01-01",
+  "date_end": "2024-12-31",
+  "keyword_rules": [],
+  "text_rules": []
+}
