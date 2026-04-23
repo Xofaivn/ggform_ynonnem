@@ -1,0 +1,7 @@
+selenium
+webdriver-manager
+fastapi
+uvicorn[standard]
+questionary
+rich
+openpyxl

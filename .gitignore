@@ -1,1 +1,8 @@
-claude.md
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+profiles/
+data/
+*.egg-info/
+.env
