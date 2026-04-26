@@ -1,20 +1,26 @@
 # Google Form Auto-Filler
 
-Tự động điền và submit Google Forms nhiều lần với dữ liệu random có kiểm soát.
+Tool tự động điền và submit Google Forms nhiều lần với dữ liệu random có kiểm soát.
 
-Hai chế độ: **Terminal wizard** và **Web UI** (giao diện trên browser).
+Hiện có 2 chế độ:
+- `main.py`: terminal wizard
+- `web_main.py`: web UI với login, quota, admin panel
 
----
+## Tính năng chính
 
-## Cài đặt
+- Tự điền nhiều loại câu hỏi Google Forms
+- Keyword rules và text rules
+- Né đáp án blacklist toàn cục
+- Tự bỏ qua các đáp án kiểu `Kết thúc khảo sát`
+- Retry tối đa 3 lần nếu Chrome hoặc lượt submit bị lỗi
+- Login `user/admin` bằng JWT
+- Admin quản lý user và quota
+- Mỗi submit thành công sẽ trừ quota của user thường
+- Progress bar, browser notification, ding khi chạy xong
 
-```bash
-pip install selenium webdriver-manager openpyxl questionary rich fastapi "uvicorn[standard]"
-```
+## Cài đặt local
 
-> Cần Chrome đã cài trên máy. `webdriver-manager` tự tải ChromeDriver phù hợp, không cần cài tay.
-
-Khuyến nghị dùng virtual environment:
+Khuyên dùng virtual environment:
 
 ```bash
 python -m venv .venv
@@ -23,147 +29,154 @@ python -m venv .venv
 # macOS/Linux
 source .venv/bin/activate
 
-pip install selenium webdriver-manager openpyxl questionary rich fastapi "uvicorn[standard]"
+pip install -r requirements.txt
 ```
 
-> `.venv/` đã có trong `.gitignore` — không được push lên Git.
+Cần có Chrome trên máy. `webdriver-manager` sẽ tự lấy ChromeDriver phù hợp.
 
----
+## Cấu hình môi trường
 
-## Chạy
+Tạo file `.env` từ `.env.example` hoặc set env trực tiếp:
 
-### Web UI (khuyên dùng)
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/formfiller
+JWT_SECRET=changeme
+DB_CONNECT_RETRIES=10
+DB_CONNECT_DELAY=1.5
+```
+
+## Chạy PostgreSQL
+
+### Cách 1: Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Sau đó mở:
+
+```text
+http://localhost:8000
+```
+
+Compose hiện dựng luôn:
+- `postgres` trên cổng `5432`
+- `app` trên cổng `8000`
+
+### Cách 2: PostgreSQL có sẵn trên máy
+
+Chỉ cần đảm bảo `DATABASE_URL` trỏ tới database PostgreSQL hợp lệ, rồi chạy:
 
 ```bash
 python web_main.py
 ```
 
-Mở trình duyệt → `http://localhost:8000`
+## Tài khoản mặc định
 
-Giao diện nền đêm sao băng, card glassmorphism với 3 tab:
-- **Config** — cấu hình + nút Bắt đầu/Dừng + live log
-- **Profiles** — quản lý profile đã lưu
-- **History** — lịch sử các lần chạy trong session
+Khi server start và bảng `users` đang rỗng, app sẽ seed:
 
-### Terminal (wizard)
+```text
+username: admin
+password: admin1
+```
+
+## Chạy app
+
+### Web UI
+
+```bash
+python web_main.py
+```
+
+Mở `http://localhost:8000`
+
+Các màn chính:
+- `Config`: cấu hình chạy form, live log, progress bar
+- `Profiles`: lưu và load profile JSON
+- `History`: lịch sử chạy của session hiện tại
+- `Admin`: chỉ hiện với admin, dùng để tạo user, tìm user, đổi quota, xóa user
+
+### Terminal wizard
 
 ```bash
 python main.py
 ```
 
-Wizard hỏi từng bước cấu hình trên terminal.
+## Docker
 
-### Docker
+Nếu không dùng compose, vẫn có thể build riêng app:
 
 ```bash
 docker build -t form-filler .
-docker run -p 8000:8000 form-filler
-# → http://localhost:8000
+docker run -p 8000:8000 \
+  -e DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/formfiller \
+  -e JWT_SECRET=changeme \
+  form-filler
 ```
 
----
+Lưu ý: container app không tự chứa PostgreSQL. Dùng `docker-compose.yml` là cách đầy đủ hơn.
+
+## API chính
+
+- `GET /api/health`
+- `POST /api/auth/login`
+- `GET /api/me`
+- `POST /api/session`
+- `GET /api/status/{sid}`
+- `POST /api/run/{sid}`
+- `POST /api/stop/{sid}`
+- `GET /api/history/{sid}`
+- `GET /api/profiles`
+- `GET /api/profiles/{name}`
+- `POST /api/profiles/{name}`
+- `DELETE /api/profiles/{name}`
+- `GET /api/admin/users`
+- `POST /api/admin/users`
+- `PUT /api/admin/users/{uid}`
+- `DELETE /api/admin/users/{uid}`
+
+## Quota
+
+- Admin có `quota_remaining = NULL`, tức không giới hạn
+- User thường bị trừ `1` quota sau mỗi submit thành công
+- Nếu user yêu cầu chạy nhiều hơn quota còn lại, app tự giảm `n_submissions`
+- Nếu quota đã hết, app chặn chạy từ backend và disable nút start ở frontend
+
+## Kiểm tra nhanh
+
+1. Start PostgreSQL
+2. Chạy `python web_main.py` hoặc `docker compose up --build`
+3. Mở `http://localhost:8000`
+4. Login bằng `admin/admin1`
+5. Vào tab `Admin`, tạo user mới với quota nhỏ, ví dụ `5`
+6. Logout rồi login bằng user vừa tạo
+7. Chạy form nhiều lần để xác nhận quota bị trừ
 
 ## Cấu trúc project
 
-```
+```text
 nem/
-├── main.py              # Entry point terminal
-├── web_main.py          # Entry point web (uvicorn)
-├── ui/
-│   └── wizard.py        # Wizard terminal (questionary + rich)
 ├── core/
-│   ├── config.py        # RunConfig, KeywordRule, TextRule + profile I/O
-│   ├── driver.py        # Chrome WebDriver + phát hiện ngôn ngữ form
-│   ├── filler.py        # Vòng lặp điền form, xử lý đa trang
-│   └── handlers.py      # Handler từng loại câu hỏi
+│   ├── config.py
+│   ├── driver.py
+│   ├── filler.py
+│   └── handlers.py
+├── ui/
+│   └── wizard.py
 ├── utils/
-│   └── elements.py      # Tiện ích DOM (get text, filter "Mục khác")
+│   └── elements.py
 ├── web/
-│   ├── app.py           # FastAPI: session, API, SSE streaming
+│   ├── app.py
+│   ├── auth.py
+│   ├── db.py
 │   └── static/
-│       ├── index.html   # SPA
-│       ├── style.css    # Glassmorphism + meteor rain
-│       └── app.js       # Canvas animation + logic frontend
-├── profiles/            # Config đã lưu (JSON)
-└── data/
-    └── answers.txt      # Câu trả lời mẫu
+│       ├── app.js
+│       ├── index.html
+│       └── style.css
+├── profiles/
+├── Dockerfile
+├── docker-compose.yml
+├── main.py
+├── requirements.txt
+└── web_main.py
 ```
-
----
-
-## Cấu hình
-
-| Thiết lập | Mô tả |
-|---|---|
-| Form URL | Link Google Form |
-| Số lần submit | Bao nhiêu lần điền |
-| Headless | Ẩn cửa sổ Chrome hay hiện ra |
-| Ngôn ngữ form | Auto / Tiếng Việt / English |
-| Randomization level | 1 = luôn theo keyword, 5 = chủ yếu random |
-| Hướng rating | Positive (ưu tiên 4–5), Negative (1–2), Neutral (đều) |
-| Delay | Thời gian chờ giữa các lần submit (giây) |
-| Preview mode | Không click Submit — chỉ điền để xem |
-| Khoảng ngày | Ngẫu nhiên ngày trong khoảng cho câu hỏi Date |
-| Keyword Rules | Ưu tiên đáp án theo keyword câu hỏi (radio/checkbox) |
-| Text Rules | Đoạn văn cho câu hỏi tự luận theo keyword |
-| Né đáp án | Danh sách keyword không bao giờ được chọn |
-
----
-
-## Keyword Rules
-
-Ưu tiên chọn đáp án cụ thể cho câu hỏi trắc nghiệm.
-
-**Ví dụ:** Form hỏi *"Bạn thường mua hàng ở kênh nào?"*, muốn ưu tiên "Online" hoặc "Shopee":
-
-```
-Question keyword : mua hàng
-Preferred answers: Online, Shopee
-Tỉ lệ           : 0.8   ← 80% theo keyword, 20% random
-```
-
-- Nhiều keyword khớp → rule định nghĩa **trước** có ưu tiên hơn
-- `Tỉ lệ = 1.0` → luôn chọn theo keyword
-- Randomization level ảnh hưởng thêm vào tỉ lệ
-
----
-
-## Text Rules
-
-Paste đoạn văn cụ thể vào câu hỏi tự luận.
-
-```
-Question keyword: nhận xét
-Đoạn 1: Sản phẩm rất tốt, tôi rất hài lòng.
----
-Đoạn 2: Chất lượng ổn, giá cả hợp lý.
----
-Đoạn 3: Sẽ giới thiệu cho bạn bè.
-```
-
-Mỗi submission random chọn 1 đoạn.
-
----
-
-## Né đáp án
-
-Danh sách keyword cách nhau bằng dấu phẩy. Mọi đáp án chứa keyword này sẽ không bao giờ được chọn.
-
-```
-không biết, chưa sử dụng, không có ý kiến
-```
-
----
-
-## Profiles
-
-Lưu toàn bộ cài đặt vào `profiles/<tên>.json`. Lần sau load lại thay vì nhập lại từ đầu.
-
----
-
-## Lưu ý kỹ thuật
-
-- **"Mục khác" / "Other"** không bao giờ được chọn ở mọi loại câu hỏi
-- **Grid questions**: chọn 1 đáp án cho **mỗi hàng**
-- **Đa trang**: tự động nhấn "Tiếp" qua từng trang, nhấn "Gửi" ở trang cuối
-- **Multi-user web**: mỗi tab browser có session riêng, chạy độc lập song song

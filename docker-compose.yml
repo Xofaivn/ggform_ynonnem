@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: formfiller-postgres
+    environment:
+      POSTGRES_DB: formfiller
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d formfiller"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: formfiller-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/formfiller
+      JWT_SECRET: changeme
+      DB_CONNECT_RETRIES: 20
+      DB_CONNECT_DELAY: 1.5
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:

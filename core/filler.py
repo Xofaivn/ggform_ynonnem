@@ -18,93 +18,94 @@ from core.handlers import detect_and_fill
 
 console = Console()
 
-_NEXT_TEXTS   = {"tiếp", "tiếp theo", "tiếp tục", "next", "continue", "tiep", "tiep theo", "tiep tuc"}
+_NEXT_TEXTS = {"tiếp", "tiếp theo", "tiếp tục", "next", "continue", "tiep", "tiep theo", "tiep tuc"}
 _SUBMIT_TEXTS = {"gửi", "submit", "nộp", "send", "gui"}
-_BACK_TEXTS   = {"quay lại", "back", "previous", "trước", "quay lai"}
+_BACK_TEXTS = {"quay lại", "back", "previous", "trước", "quay lai"}
 
 
-def _norm(s: str) -> str:
-    return unicodedata.normalize("NFC", s).lower().strip()
+def _norm(text: str) -> str:
+    return unicodedata.normalize("NFC", text).lower().strip()
 
 
 def _get_question_blocks(driver: WebDriver):
     return driver.find_elements(By.CSS_SELECTOR, "div[data-params]")
 
 
-def _btn_text(btn) -> str:
-    t = (btn.text or "").strip()
-    if not t:
-        t = (btn.get_attribute("aria-label") or btn.get_attribute("value") or "").strip()
-    if not t:
-        for span in btn.find_elements(By.TAG_NAME, "span"):
-            t = (span.text or "").strip()
-            if t:
+def _btn_text(button) -> str:
+    text = (button.text or "").strip()
+    if not text:
+        text = (button.get_attribute("aria-label") or button.get_attribute("value") or "").strip()
+    if not text:
+        for span in button.find_elements(By.TAG_NAME, "span"):
+            text = (span.text or "").strip()
+            if text:
                 break
-    return _norm(t)
+    return _norm(text)
 
 
-def _classify_buttons(driver: WebDriver, log_fn: Callable) -> tuple[list, list]:
-    next_btns: list = []
-    submit_btns: list = []
+def _classify_buttons(driver: WebDriver, log_fn: Callable[[str], None]) -> tuple[list, list]:
+    next_buttons: list = []
+    submit_buttons: list = []
 
     primary = driver.find_elements(By.CSS_SELECTOR, "[jsname='P2WeLd']")
-    for btn in primary:
-        t = _btn_text(btn)
-        if not t:
+    for button in primary:
+        text = _btn_text(button)
+        if not text:
             continue
-        if any(s in t for s in _SUBMIT_TEXTS):
-            submit_btns.append(btn)
-        elif any(s in t for s in _NEXT_TEXTS):
-            next_btns.append(btn)
+        if any(keyword in text for keyword in _SUBMIT_TEXTS):
+            submit_buttons.append(button)
+        elif any(keyword in text for keyword in _NEXT_TEXTS):
+            next_buttons.append(button)
 
-    if next_btns or submit_btns:
-        _log_buttons(next_btns, submit_btns, log_fn)
-        return next_btns, submit_btns
+    if next_buttons or submit_buttons:
+        _log_buttons(next_buttons, submit_buttons, log_fn)
+        return next_buttons, submit_buttons
 
     try:
         candidates = driver.find_elements(
             By.XPATH,
             "//div[@role='button' and not(ancestor::div[@data-params])]"
             " | //button[not(ancestor::div[@data-params])]"
-            " | //input[@type='submit']"
+            " | //input[@type='submit']",
         )
     except Exception:
         candidates = driver.find_elements(
-            By.CSS_SELECTOR, "div[role='button'], button, input[type='submit']"
+            By.CSS_SELECTOR,
+            "div[role='button'], button, input[type='submit']",
         )
 
-    for btn in candidates:
-        t = _btn_text(btn)
-        if not t:
+    for button in candidates:
+        text = _btn_text(button)
+        if not text:
             continue
-        if any(s in t for s in _BACK_TEXTS):
+        if any(keyword in text for keyword in _BACK_TEXTS):
             continue
-        if any(s in t for s in _SUBMIT_TEXTS):
-            submit_btns.append(btn)
-        elif any(s in t for s in _NEXT_TEXTS):
-            next_btns.append(btn)
+        if any(keyword in text for keyword in _SUBMIT_TEXTS):
+            submit_buttons.append(button)
+        elif any(keyword in text for keyword in _NEXT_TEXTS):
+            next_buttons.append(button)
 
-    _log_buttons(next_btns, submit_btns, log_fn)
-    return next_btns, submit_btns
+    _log_buttons(next_buttons, submit_buttons, log_fn)
+    return next_buttons, submit_buttons
 
 
-def _log_buttons(next_btns: list, submit_btns: list, log_fn: Callable) -> None:
-    if next_btns:
-        texts = [_btn_text(b) for b in next_btns]
+def _log_buttons(next_buttons: list, submit_buttons: list, log_fn: Callable[[str], None]) -> None:
+    if next_buttons:
+        texts = [_btn_text(button) for button in next_buttons]
         log_fn(f"  [dim]🔍 Nút Next tìm thấy: {texts}[/dim]")
-    if submit_btns:
-        texts = [_btn_text(b) for b in submit_btns]
+    if submit_buttons:
+        texts = [_btn_text(button) for button in submit_buttons]
         log_fn(f"  [dim]🔍 Nút Submit tìm thấy: {texts}[/dim]")
 
 
-def _safe_click(driver: WebDriver, btn) -> bool:
+def _safe_click(driver: WebDriver, button) -> bool:
     try:
-        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
-        btn.click()
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", button)
+        button.click()
         return True
     except Exception:
         try:
-            driver.execute_script("arguments[0].click();", btn)
+            driver.execute_script("arguments[0].click();", button)
             return True
         except Exception:
             return False
@@ -126,13 +127,32 @@ def _wait_page_change(driver: WebDriver, anchor, timeout: int = 12) -> None:
         time.sleep(1.0)
 
 
+def _replace_driver(
+    config: RunConfig,
+    lang: str,
+    driver_ref: list | None,
+    old_driver: WebDriver | None = None,
+) -> WebDriver:
+    if old_driver is not None:
+        try:
+            old_driver.quit()
+        except Exception:
+            pass
+
+    new_driver = create_driver(headless=config.headless, lang=lang)
+    if driver_ref is not None:
+        driver_ref.clear()
+        driver_ref.append(new_driver)
+    return new_driver
+
+
 def fill_form_once(
     driver: WebDriver,
     config: RunConfig,
     submission_idx: int,
     total: int,
     lang: str,
-    log_fn: Callable,
+    log_fn: Callable[[str], None],
     stop_event: Event | None = None,
 ) -> bool:
     log_fn(f"\n[bold cyan]─── Submission {submission_idx}/{total} ───[/bold cyan]")
@@ -145,8 +165,8 @@ def fill_form_once(
         WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-params]"))
         )
-    except Exception as e:
-        log_fn(f"  [red]❌ Không load được form: {e}[/red]")
+    except Exception as exc:
+        log_fn(f"  [red]❌ Không load được form: {exc}[/red]")
         return False
 
     page_num = 1
@@ -170,40 +190,37 @@ def fill_form_once(
             try:
                 result = detect_and_fill(block, driver, config)
                 log_fn(f"  [green]✓[/green] {result}")
-            except Exception as e:
-                log_fn(f"  [red]✗ Lỗi câu hỏi: {e}[/red]")
+            except Exception as exc:
+                log_fn(f"  [red]✗ Lỗi câu hỏi: {exc}[/red]")
 
         time.sleep(0.3)
+        next_buttons, submit_buttons = _classify_buttons(driver, log_fn)
 
-        next_btns, submit_btns = _classify_buttons(driver, log_fn)
-
-        if next_btns:
-            btn = next_btns[0]
-            t = _btn_text(btn)
-            log_fn(f"  [dim]→ Click '{t}'[/dim]")
-            if _safe_click(driver, btn):
+        if next_buttons:
+            button = next_buttons[0]
+            text = _btn_text(button)
+            log_fn(f"  [dim]→ Click '{text}'[/dim]")
+            if _safe_click(driver, button):
                 _wait_page_change(driver, anchor)
                 page_num += 1
                 continue
-            else:
-                log_fn("  [red]❌ Không click được nút Next[/red]")
-                return False
+            log_fn("  [red]❌ Không click được nút Next[/red]")
+            return False
 
         if config.no_submit:
             log_fn("  [yellow]⏸ Preview mode — bỏ qua Submit[/yellow]")
             return True
 
-        if submit_btns:
-            btn = submit_btns[0]
-            t = _btn_text(btn)
-            log_fn(f"  [dim]→ Click '{t}'[/dim]")
-            if _safe_click(driver, btn):
+        if submit_buttons:
+            button = submit_buttons[0]
+            text = _btn_text(button)
+            log_fn(f"  [dim]→ Click '{text}'[/dim]")
+            if _safe_click(driver, button):
                 time.sleep(1.5)
                 log_fn("  [bold green]✅ Đã gửi form![/bold green]")
                 return True
-            else:
-                log_fn("  [red]❌ Không click được nút Submit[/red]")
-                return False
+            log_fn("  [red]❌ Không click được nút Submit[/red]")
+            return False
 
         log_fn("  [red]❌ Không tìm thấy nút Next hoặc Submit[/red]")
         return False
@@ -211,32 +228,26 @@ def fill_form_once(
 
 def run_all(
     config: RunConfig,
-    log_fn: Callable | None = None,
+    log_fn: Callable[[str], None] | None = None,
     stop_event: Event | None = None,
     driver_ref: list | None = None,
+    quota_fn: Callable[[], None] | None = None,
+    progress_fn: Callable[[int, int, int], None] | None = None,
 ) -> dict:
     """
-    log_fn(msg: str) — nhận log có Rich markup.
-    stop_event — set() từ ngoài để dừng sớm.
-    driver_ref — list 1 phần tử, ghi driver vào để caller có thể quit.
     Returns: {"success": N, "fail": N}
     """
     if log_fn is None:
-        log_fn = lambda msg: console.print(msg)
+        log_fn = lambda message: console.print(message)
 
     init_lang = "vi" if config.form_language in ("auto", "vi") else "en"
-    driver = create_driver(headless=config.headless, lang=init_lang)
-    if driver_ref is not None:
-        driver_ref.clear()
-        driver_ref.append(driver)
+    driver = _replace_driver(config, init_lang, driver_ref)
 
     lang = init_lang
     if config.form_language == "auto":
         try:
             driver.get(config.form_url)
-            WebDriverWait(driver, 12).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
+            WebDriverWait(driver, 12).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
             lang = detect_form_language(driver)
             log_fn(f"  [dim]🌐 Phát hiện ngôn ngữ form: {lang.upper()}[/dim]")
         except Exception:
@@ -244,41 +255,81 @@ def run_all(
 
     success = 0
     fail = 0
+    if progress_fn:
+        progress_fn(success, fail, config.n_submissions)
 
     try:
-        for i in range(1, config.n_submissions + 1):
+        for submission_idx in range(1, config.n_submissions + 1):
             if stop_event and stop_event.is_set():
                 log_fn("\n[yellow]⛔ Đã dừng bởi người dùng[/yellow]")
                 break
 
-            ok = fill_form_once(driver, config, i, config.n_submissions, lang, log_fn, stop_event)
+            ok = False
+            last_error: Exception | None = None
+
+            for attempt in range(1, 4):
+                if stop_event and stop_event.is_set():
+                    break
+                try:
+                    ok = fill_form_once(
+                        driver,
+                        config,
+                        submission_idx,
+                        config.n_submissions,
+                        lang,
+                        log_fn,
+                        stop_event,
+                    )
+                    if ok:
+                        break
+                    if attempt < 3:
+                        log_fn(f"  [yellow]⚠ Thử lại {attempt}/3 cho submission này[/yellow]")
+                        driver = _replace_driver(config, lang, driver_ref, driver)
+                except Exception as exc:
+                    last_error = exc
+                    log_fn(f"  [yellow]⚠ Lỗi lần {attempt}/3: {exc}[/yellow]")
+                    if attempt < 3:
+                        driver = _replace_driver(config, lang, driver_ref, driver)
+
+            if last_error is not None and not ok:
+                log_fn(f"  [red]❌ Bỏ qua submission do lỗi: {last_error}[/red]")
+
             if ok:
                 success += 1
+                if quota_fn and not config.no_submit:
+                    quota_fn()
             else:
                 fail += 1
 
-            if i < config.n_submissions and not (stop_event and stop_event.is_set()):
+            if progress_fn:
+                progress_fn(success, fail, config.n_submissions)
+
+            if stop_event and stop_event.is_set():
+                continue
+
+            if submission_idx < config.n_submissions:
                 delay = random.uniform(config.delay_min, config.delay_max)
                 log_fn(f"\n  [dim]⏳ Chờ {delay:.1f}s...[/dim]")
-                # Sleep interruptible
-                for _ in range(int(delay * 10)):
+                for _ in range(max(1, int(delay * 10))):
                     if stop_event and stop_event.is_set():
                         break
                     time.sleep(0.1)
+                if delay == 0:
+                    time.sleep(0.01)
 
     except KeyboardInterrupt:
         log_fn("\n[yellow]⛔ Đã dừng bởi người dùng (Ctrl+C)[/yellow]")
-
     finally:
         try:
             driver.quit()
         except Exception:
             pass
-        sep = "═" * 45
-        log_fn(f"\n[bold]{sep}[/bold]")
-        log_fn(f"  [bold]📊 KẾT QUẢ:[/bold]")
+
+        separator = "═" * 45
+        log_fn(f"\n[bold]{separator}[/bold]")
+        log_fn("  [bold]📊 KẾT QUẢ:[/bold]")
         log_fn(f"     ✅ Thành công : [green]{success}[/green]/{config.n_submissions}")
         log_fn(f"     ❌ Thất bại   : [red]{fail}[/red]/{config.n_submissions}")
-        log_fn(f"[bold]{sep}[/bold]")
+        log_fn(f"[bold]{separator}[/bold]")
 
     return {"success": success, "fail": fail}

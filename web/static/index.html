@@ -5,226 +5,275 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Form Auto-Filler</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
+  <canvas id="meteor-canvas"></canvas>
 
-<canvas id="meteor-canvas"></canvas>
-
-<div id="app">
-  <div class="card">
-
-    <!-- Header -->
-    <div class="card-header">
-      <div class="card-title">
-        <span>🤖</span>
-        <span>Form Auto-Filler</span>
+  <div id="login-screen" class="screen-shell">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="card-title">
+          <span>🤖</span>
+          <span>Form Auto-Filler</span>
+        </div>
+        <p class="login-subtitle">Đăng nhập để dùng tool và quản lý quota.</p>
       </div>
-      <span id="status-badge" class="status-badge status-idle">○ Chờ</span>
-    </div>
 
-    <!-- Tabs -->
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="config">⚙ Config</button>
-      <button class="tab-btn" data-tab="profiles">📁 Profiles</button>
-      <button class="tab-btn" data-tab="history">📜 History</button>
-    </div>
-
-    <!-- ── Tab: Config ─────────────────────────────────────────── -->
-    <div id="tab-config" class="tab-pane active">
-
-      <!-- Form URL -->
       <div class="field">
-        <label>Form URL</label>
-        <input type="text" id="form_url" placeholder="https://docs.google.com/forms/..." />
+        <label>Tên đăng nhập</label>
+        <input type="text" id="login-username" placeholder="admin" autocomplete="username" />
       </div>
 
-      <!-- Row 1 -->
-      <div class="row-2">
-        <div class="field">
-          <label>Số lần submit <span class="tip" data-tip="Số lần điền và gửi form. Mỗi lần là 1 response độc lập với câu trả lời ngẫu nhiên khác nhau.">?</span></label>
-          <input type="number" id="n_submissions" value="2" min="1" max="9999" />
-        </div>
-        <div class="field">
-          <label>Ngôn ngữ form <span class="tip" data-tip="Ngôn ngữ của nút điều hướng trong form (Tiếp theo / Next, Gửi / Submit). Chọn Tự động để tool tự nhận diện.">?</span></label>
-          <select id="form_language">
-            <option value="auto">Tự động</option>
-            <option value="vi">Tiếng Việt</option>
-            <option value="en">English</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Row 2 -->
-      <div class="row-2">
-        <div class="field">
-          <label>Hướng rating <span class="tip" data-tip="Điều chỉnh xu hướng chọn điểm cho câu hỏi thang điểm và lưới đánh giá.&#10;• Positive: 80% chọn điểm cao (4–5)&#10;• Negative: 80% chọn điểm thấp (1–2)&#10;• Neutral: phân bổ đều ngẫu nhiên">?</span></label>
-          <select id="rating_direction">
-            <option value="positive">Positive (cao 4–5)</option>
-            <option value="negative">Negative (thấp 1–2)</option>
-            <option value="neutral">Neutral (đều)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Delay (giây) <span class="tip" data-tip="Thời gian nghỉ ngẫu nhiên giữa mỗi lần submit. Giúp tránh bị phát hiện bot. Đặt 0–0 nếu muốn chạy nhanh tối đa.">?</span></label>
-          <div class="row-2" style="gap:0.4rem">
-            <input type="number" id="delay_min" value="1" min="0" step="0.5" placeholder="Min" />
-            <input type="number" id="delay_max" value="3" min="0" step="0.5" placeholder="Max" />
-          </div>
-        </div>
-      </div>
-
-      <!-- Randomization slider -->
-      <div class="slider-row">
-        <span class="slider-label">Randomize <span class="tip" data-tip="Mức độ ngẫu nhiên hoá câu trả lời.&#10;• 1: gần như cố định (ưu tiên keyword rules tuyệt đối)&#10;• 3: cân bằng giữa rule và ngẫu nhiên&#10;• 5: tối đa ngẫu nhiên, bỏ qua phần lớn rule">?</span></span>
-        <input type="range" id="randomization_level" min="1" max="5" value="3" />
-        <span id="randomization_level_val" class="slider-val">3</span>
-        <span style="font-size:0.72rem;color:rgba(255,255,255,0.3)">/ 5</span>
-      </div>
-
-      <!-- Toggles -->
-      <div class="toggle-row">
-        <span class="toggle-label">Headless (ẩn Chrome) <span class="tip" data-tip="Chạy Chrome ở chế độ ẩn, không hiện cửa sổ trình duyệt. Bật khi chạy ngầm hoặc trên server. Tắt để quan sát Chrome điền form.">?</span></span>
-        <label class="toggle"><input type="checkbox" id="headless" /><span class="toggle-track"></span></label>
-      </div>
-      <div class="toggle-row">
-        <span class="toggle-label">Preview mode (không submit) <span class="tip" data-tip="Điền form như bình thường nhưng BỎ QUA bước nhấn Gửi cuối cùng. Dùng để kiểm tra xem tool điền đúng chưa trước khi submit thật.">?</span></span>
-        <label class="toggle"><input type="checkbox" id="no_submit" /><span class="toggle-track"></span></label>
-      </div>
-
-      <!-- Date range -->
-      <div class="row-2">
-        <div class="field">
-          <label>Ngày bắt đầu <span class="tip" data-tip="Khoảng ngày dùng để điền ngẫu nhiên vào các câu hỏi dạng Date (chọn ngày) trong form.">?</span></label>
-          <input type="date" id="date_start" value="2020-01-01" />
-        </div>
-        <div class="field">
-          <label>Ngày kết thúc</label>
-          <input type="date" id="date_end" value="2024-12-31" />
-        </div>
-      </div>
-
-      <!-- Keyword rules -->
-      <div class="field" style="margin-top:0.5rem">
-        <div class="section-header">
-          <span class="section-title">Keyword Rules <span class="tip" data-tip="Gán đáp án ưu tiên cho câu hỏi trắc nghiệm/checkbox theo từ khoá.&#10;Ví dụ: câu hỏi chứa 'mua sắm' → ưu tiên chọn 'Online, Shopee' với 80% xác suất.&#10;Rule đầu tiên khớp sẽ thắng.">?</span></span>
-          <button class="btn btn-ghost btn-sm" id="btn-add-kw">+ Thêm rule</button>
-        </div>
-        <div class="rule-list" id="kw-rule-list"></div>
-        <div class="rule-form" id="kw-form" style="display:none">
-          <div class="field">
-            <label>Question keyword</label>
-            <input type="text" id="kw-keyword" placeholder="VD: mua sắm" />
-          </div>
-          <div class="field">
-            <label>Preferred answers (dấu phẩy)</label>
-            <input type="text" id="kw-answers" placeholder="VD: Online, Shopee" />
-          </div>
-          <div class="field">
-            <label>Tỉ lệ (0.0 – 1.0)</label>
-            <input type="number" id="kw-ratio" value="1.0" min="0" max="1" step="0.1" />
-          </div>
-          <div class="rule-form-btns">
-            <button class="btn btn-primary btn-sm" id="btn-kw-save">Lưu</button>
-            <button class="btn btn-ghost btn-sm" id="btn-kw-cancel">Hủy</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Text rules -->
       <div class="field">
-        <div class="section-header">
-          <span class="section-title">Text Rules (câu tự luận) <span class="tip" data-tip="Cung cấp pool đoạn văn sẵn cho câu hỏi tự luận/short answer.&#10;Mỗi lần submit tool sẽ random chọn 1 đoạn trong pool.&#10;Ngăn cách các đoạn bằng dòng ---.">?</span></span>
-          <button class="btn btn-ghost btn-sm" id="btn-add-txt">+ Thêm rule</button>
-        </div>
-        <div class="rule-list" id="txt-rule-list"></div>
-        <div class="rule-form" id="txt-form" style="display:none">
-          <div class="field">
-            <label>Question keyword</label>
-            <input type="text" id="txt-keyword" placeholder="VD: nhận xét" />
-          </div>
-          <div class="field">
-            <label>Đoạn văn (nhiều đoạn thì ngăn cách bằng dòng <code>---</code>)</label>
-            <textarea id="txt-answers" rows="4" placeholder="Đoạn 1&#10;---&#10;Đoạn 2&#10;---&#10;Đoạn 3"></textarea>
-          </div>
-          <div class="rule-form-btns">
-            <button class="btn btn-primary btn-sm" id="btn-txt-save">Lưu</button>
-            <button class="btn btn-ghost btn-sm" id="btn-txt-cancel">Hủy</button>
-          </div>
-        </div>
+        <label>Mật khẩu</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
       </div>
 
-      <!-- Avoid answers -->
-      <div class="field">
-        <label>Né đáp án chứa <span class="tip" data-tip="Danh sách từ khoá cần tránh. Bất kỳ đáp án nào chứa các từ này sẽ bị loại khỏi danh sách chọn, ngay cả khi được random chọn đến.&#10;Ví dụ: không biết, chưa sử dụng, không có ý kiến">?</span></label>
-        <input type="text" id="avoid_answers" placeholder="VD: không biết, chưa sử dụng, không có ý kiến" />
-      </div>
-
-      <!-- Action buttons -->
-      <div class="action-row">
-        <button class="btn btn-primary" id="btn-start">▶ Bắt đầu</button>
-        <button class="btn btn-danger" id="btn-stop" disabled>⏹ Dừng</button>
-        <button class="btn btn-ghost" id="btn-save-profile">💾 Lưu profile</button>
-        <button class="btn btn-ghost" id="btn-reset-config">↺ Làm mới</button>
-      </div>
-
-      <!-- Live log -->
-      <div style="margin-top:1.25rem">
-        <div class="log-header">
-          <span class="section-title">Live Log</span>
-          <div style="display:flex;gap:0.4rem">
-            <button class="btn btn-ghost btn-sm" id="btn-clear-log">🗑 Clear</button>
-            <button class="btn btn-ghost btn-sm" id="btn-export-log">⬇ Export</button>
-          </div>
-        </div>
-        <div class="log-panel" id="log-panel">
-          <div class="log-line log-dim">— Chờ bắt đầu —</div>
-        </div>
-      </div>
-
-    </div><!-- /tab-config -->
-
-    <!-- ── Tab: Profiles ──────────────────────────────────────── -->
-    <div id="tab-profiles" class="tab-pane">
-      <div class="section-header" style="margin-bottom:1rem">
-        <span style="font-size:0.9rem;font-weight:600">Profiles đã lưu</span>
-        <button class="btn btn-ghost btn-sm" onclick="loadProfilesList()">↺ Làm mới</button>
-      </div>
-      <div class="profile-list" id="profile-list">
-        <div class="empty-state">Đang tải...</div>
-      </div>
-    </div>
-
-    <!-- ── Tab: History ───────────────────────────────────────── -->
-    <div id="tab-history" class="tab-pane">
-      <div class="section-header" style="margin-bottom:1rem">
-        <span style="font-size:0.9rem;font-weight:600">Lịch sử chạy (session này)</span>
-        <button class="btn btn-ghost btn-sm" onclick="loadHistory()">↺ Làm mới</button>
-      </div>
-      <div id="history-list">
-        <div class="empty-state">Chưa có lần chạy nào</div>
-      </div>
-    </div>
-
-  </div><!-- /card -->
-</div><!-- /app -->
-
-<!-- Save profile modal -->
-<div class="modal-overlay" id="save-modal">
-  <div class="modal">
-    <div class="modal-title">💾 Lưu profile</div>
-    <div class="field">
-      <label>Tên profile</label>
-      <input type="text" id="profile-name-input" placeholder="VD: khao_sat_matcha" />
-    </div>
-    <div class="modal-btns">
-      <button class="btn btn-primary" id="btn-modal-save">Lưu</button>
-      <button class="btn btn-ghost" id="btn-modal-cancel">Hủy</button>
+      <button class="btn btn-primary btn-block" id="btn-login">▶ Đăng nhập</button>
+      <div id="login-error" class="form-error" hidden></div>
+      <div class="login-hint">Mặc định lần đầu: <code>admin / admin1</code></div>
     </div>
   </div>
-</div>
 
-<script src="/static/app.js"></script>
+  <div id="app" hidden>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>🤖</span>
+          <span>Form Auto-Filler</span>
+        </div>
+
+        <div class="header-side">
+          <div class="user-strip">
+            <span id="user-summary">Đang tải user...</span>
+            <button class="btn btn-ghost btn-sm" id="btn-logout">Đăng xuất</button>
+          </div>
+          <span id="status-badge" class="status-badge status-idle">○ Chờ</span>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="config">⚙ Config</button>
+        <button class="tab-btn" data-tab="profiles">📁 Profiles</button>
+        <button class="tab-btn" data-tab="history">📜 History</button>
+        <button class="tab-btn" data-tab="admin" id="tab-admin-btn" hidden>🛡 Admin</button>
+      </div>
+
+      <div id="tab-config" class="tab-pane active">
+        <div id="quota-notice" class="quota-notice" hidden></div>
+
+        <div class="field">
+          <label>Form URL</label>
+          <input type="text" id="form_url" placeholder="https://docs.google.com/forms/..." />
+        </div>
+
+        <div class="row-2">
+          <div class="field">
+            <label>Số lần submit</label>
+            <input type="number" id="n_submissions" value="2" min="1" max="9999" />
+          </div>
+          <div class="field">
+            <label>Ngôn ngữ form</label>
+            <select id="form_language">
+              <option value="auto">Tự động</option>
+              <option value="vi">Tiếng Việt</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row-2">
+          <div class="field">
+            <label>Hướng rating</label>
+            <select id="rating_direction">
+              <option value="positive">Positive (cao 4-5)</option>
+              <option value="negative">Negative (thấp 1-2)</option>
+              <option value="neutral">Neutral (đều)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Delay (giây)</label>
+            <div class="row-2 compact-grid">
+              <input type="number" id="delay_min" value="1" min="0" step="0.5" placeholder="Min" />
+              <input type="number" id="delay_max" value="3" min="0" step="0.5" placeholder="Max" />
+            </div>
+          </div>
+        </div>
+
+        <div class="slider-row">
+          <span class="slider-label">Randomize</span>
+          <input type="range" id="randomization_level" min="1" max="5" value="3" />
+          <span id="randomization_level_val" class="slider-val">3</span>
+          <span class="slider-unit">/ 5</span>
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-label">Headless (ẩn Chrome)</span>
+          <label class="toggle"><input type="checkbox" id="headless" /><span class="toggle-track"></span></label>
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-label">Preview mode (không submit)</span>
+          <label class="toggle"><input type="checkbox" id="no_submit" /><span class="toggle-track"></span></label>
+        </div>
+
+        <div class="row-2">
+          <div class="field">
+            <label>Ngày bắt đầu</label>
+            <input type="date" id="date_start" value="2020-01-01" />
+          </div>
+          <div class="field">
+            <label>Ngày kết thúc</label>
+            <input type="date" id="date_end" value="2024-12-31" />
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="section-header">
+            <span class="section-title">Keyword Rules</span>
+            <button class="btn btn-ghost btn-sm" id="btn-add-kw">+ Thêm rule</button>
+          </div>
+          <div class="rule-list" id="kw-rule-list"></div>
+          <div class="rule-form" id="kw-form" hidden>
+            <div class="field">
+              <label>Question keyword</label>
+              <input type="text" id="kw-keyword" placeholder="VD: mua sắm" />
+            </div>
+            <div class="field">
+              <label>Preferred answers (dấu phẩy)</label>
+              <input type="text" id="kw-answers" placeholder="VD: Online, Shopee" />
+            </div>
+            <div class="field">
+              <label>Tỉ lệ (0.0 - 1.0)</label>
+              <input type="number" id="kw-ratio" value="1.0" min="0" max="1" step="0.1" />
+            </div>
+            <div class="rule-form-btns">
+              <button class="btn btn-primary btn-sm" id="btn-kw-save">Lưu</button>
+              <button class="btn btn-ghost btn-sm" id="btn-kw-cancel">Huỷ</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="section-header">
+            <span class="section-title">Text Rules</span>
+            <button class="btn btn-ghost btn-sm" id="btn-add-txt">+ Thêm rule</button>
+          </div>
+          <div class="rule-list" id="txt-rule-list"></div>
+          <div class="rule-form" id="txt-form" hidden>
+            <div class="field">
+              <label>Question keyword</label>
+              <input type="text" id="txt-keyword" placeholder="VD: nhận xét" />
+            </div>
+            <div class="field">
+              <label>Đoạn văn (ngăn bằng dòng <code>---</code>)</label>
+              <textarea id="txt-answers" rows="4" placeholder="Đoạn 1&#10;---&#10;Đoạn 2"></textarea>
+            </div>
+            <div class="rule-form-btns">
+              <button class="btn btn-primary btn-sm" id="btn-txt-save">Lưu</button>
+              <button class="btn btn-ghost btn-sm" id="btn-txt-cancel">Huỷ</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Né đáp án chứa</label>
+          <input type="text" id="avoid_answers" placeholder="VD: không biết, chưa sử dụng" />
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" id="btn-start">▶ Bắt đầu</button>
+          <button class="btn btn-danger" id="btn-stop" disabled>⏹ Dừng</button>
+          <button class="btn btn-ghost" id="btn-save-profile">💾 Lưu profile</button>
+          <button class="btn btn-ghost" id="btn-reset-config">↺ Làm mới</button>
+        </div>
+
+        <div id="progress-bar-wrap" class="progress-wrap" hidden>
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <div class="progress-label" id="progress-label">0 / 0 - 0%</div>
+        </div>
+
+        <div class="log-section">
+          <div class="log-header">
+            <span class="section-title">Live Log</span>
+            <div class="log-actions">
+              <button class="btn btn-ghost btn-sm" id="btn-clear-log">🗑 Clear</button>
+              <button class="btn btn-ghost btn-sm" id="btn-export-log">⬇ Export</button>
+            </div>
+          </div>
+          <div class="log-panel" id="log-panel">
+            <div class="log-line log-dim">- Chờ bắt đầu -</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-profiles" class="tab-pane">
+        <div class="section-header section-gap">
+          <span class="panel-title">Profiles đã lưu</span>
+          <button class="btn btn-ghost btn-sm" id="btn-refresh-profiles">↺ Làm mới</button>
+        </div>
+        <div class="profile-list" id="profile-list">
+          <div class="empty-state">Đang tải...</div>
+        </div>
+      </div>
+
+      <div id="tab-history" class="tab-pane">
+        <div class="section-header section-gap">
+          <span class="panel-title">Lịch sử chạy (session này)</span>
+          <button class="btn btn-ghost btn-sm" id="btn-refresh-history">↺ Làm mới</button>
+        </div>
+        <div id="history-list">
+          <div class="empty-state">Chưa có lần chạy nào</div>
+        </div>
+      </div>
+
+      <div id="tab-admin" class="tab-pane">
+        <div class="admin-toolbar">
+          <input type="text" id="admin-search" placeholder="Tìm username..." />
+          <button class="btn btn-ghost btn-sm" id="btn-admin-search">🔍 Tìm</button>
+          <button class="btn btn-ghost btn-sm" id="btn-admin-refresh">↺ Làm mới</button>
+        </div>
+
+        <div class="admin-create-card">
+          <div class="section-header">
+            <span class="panel-title">Tạo user mới</span>
+          </div>
+          <div class="row-3">
+            <input type="text" id="admin-new-username" placeholder="Username" />
+            <input type="password" id="admin-new-password" placeholder="Password" />
+            <input type="number" id="admin-new-quota" placeholder="Quota" min="0" value="10" />
+          </div>
+          <div class="admin-create-actions">
+            <button class="btn btn-primary btn-sm" id="btn-admin-create">+ Tạo user</button>
+          </div>
+        </div>
+
+        <div class="admin-list" id="admin-user-list">
+          <div class="empty-state">Đang tải user...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="save-modal">
+    <div class="modal">
+      <div class="modal-title">💾 Lưu profile</div>
+      <div class="field">
+        <label>Tên profile</label>
+        <input type="text" id="profile-name-input" placeholder="VD: khao_sat_matcha" />
+      </div>
+      <div class="modal-btns">
+        <button class="btn btn-primary" id="btn-modal-save">Lưu</button>
+        <button class="btn btn-ghost" id="btn-modal-cancel">Huỷ</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
 </body>
 </html>
