@@ -28,7 +28,7 @@ BANNER = """[bold cyan]
 
 def _print_banner() -> None:
     console.print(BANNER)
-    console.print(Panel("[bold]Google Form Auto-Filler[/bold] · v3.0", expand=False))
+    console.print(Panel("[bold]Google Form Auto-Filler[/bold] · v3.0 · From Xofai with love", expand=False))
     console.print()
 
 
