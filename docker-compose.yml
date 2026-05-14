@@ -22,6 +22,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    shm_size: '2gb'    # ✅ Thêm dòng này — Chrome cần shared memory
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/formfiller
       JWT_SECRET: changeme

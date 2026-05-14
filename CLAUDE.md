@@ -13,23 +13,23 @@ Google Forms auto-filler. Hai chế độ chạy: **Terminal wizard** (`python m
 python -m venv .venv
 .venv\Scripts\activate        # Windows
 # source .venv/bin/activate   # macOS/Linux
-pip install selenium webdriver-manager openpyxl questionary rich fastapi "uvicorn[standard]"
+pip install -r requirements.txt
 
-# Terminal mode
+# Terminal mode (không cần DB)
 python main.py
 
-# Web mode
+# Web mode — cần PostgreSQL
 python web_main.py
 # → http://localhost:8000
 
-# Docker
-docker build -t form-filler .
-docker run -p 8000:8000 form-filler
+# Docker Compose (khuyến nghị cho web mode — tự khởi PostgreSQL)
+docker-compose up --build
+# Default admin: admin / admin1
 ```
 
 `.venv/`, `profiles/`, `data/`, `__pycache__/` đã có trong `.gitignore`.
 
-Không có test framework. Validate bằng cách chạy với 1 lần submit và `headless=False` để quan sát Chrome.
+Không có test framework. Validate bằng cách chạy với 1 lần submit và quan sát Chrome (chạy local sẽ tự hiện cửa sổ, Docker tự force headless).
 
 ## Project Structure
 
@@ -47,8 +47,9 @@ nem/
 ├── utils/
 │   └── elements.py          # get_option_text(), is_other_option(), scroll_and_click()
 ├── web/
-│   ├── __init__.py
 │   ├── app.py               # FastAPI app: session mgmt, REST API, SSE streaming
+│   ├── auth.py              # JWT auth: hash_password, create_token, require_auth, require_admin
+│   ├── db.py                # PostgreSQL helpers: user CRUD, quota management
 │   └── static/
 │       ├── index.html       # Single-page app (3 tabs: Config, Profiles, History)
 │       ├── style.css        # Glassmorphism card + meteor rain background
@@ -57,6 +58,7 @@ nem/
 ├── data/
 │   └── answers.txt          # Sample text answers
 ├── Dockerfile
+├── docker-compose.yml       # PostgreSQL 16 + app (2GB shm for Chrome)
 └── requirements.txt
 ```
 
@@ -65,32 +67,56 @@ nem/
 ### Dual-mode RunConfig flow
 ```
 Terminal:  main.py → run_wizard() → RunConfig → run_all(config)
-Web:       Browser → POST /api/run/{sid} → Thread(run_all(config, log_fn, stop_event, driver_ref))
+Web:       Browser → POST /api/run/{sid} → Thread(run_all(config, log_fn, stop_event, driver_ref, quota_fn, progress_fn))
                                                     ↓
                      GET /api/stream/{sid} ← SSE queue ← log_fn callbacks
 ```
 
 ### `run_all()` signature
 ```python
-run_all(config: RunConfig, log_fn=None, stop_event=None, driver_ref=None) -> dict
-# Returns {"success": N, "fail": N}
-# log_fn=None → defaults to console.print (terminal mode unchanged)
-# stop_event: threading.Event — set() to interrupt mid-run
-# driver_ref: list[WebDriver] — allows external quit
+run_all(
+    config: RunConfig,
+    log_fn=None,        # None → console.print (terminal mode unchanged)
+    stop_event=None,    # threading.Event — set() to interrupt mid-run
+    driver_ref=None,    # list[WebDriver] — allows external quit
+    quota_fn=None,      # called after each successful submit; sets stop_event when quota=0
+    progress_fn=None,   # called with (success, fail, total) after each attempt
+) -> dict               # {"success": N, "fail": N}
 ```
 
+### Chrome headless behavior (`core/driver.py`)
+`create_driver(lang)` — không còn nhận param `headless`. Logic tự động:
+- Chạy trong Docker (`/.dockerenv` tồn tại hoặc `RUNNING_IN_DOCKER=1`) → force `--headless=new`
+- Chạy local → Chrome hiện cửa sổ bình thường
+
+Không có option headless ở UI hay config — hành vi phụ thuộc hoàn toàn vào môi trường.
+
+### Authentication & quota (`web/auth.py`, `web/db.py`)
+- JWT tokens (7-day TTL) issued at `POST /api/auth/login`.
+- `require_auth` / `require_admin` are FastAPI `Depends` guards.
+- Two roles: `admin` (unlimited quota) and `user` (quota_remaining tracked in PostgreSQL).
+- `quota_remaining=None` means unlimited for non-admin users.
+- Quota is decremented per successful submission via `quota_fn` callback inside the runner thread; `stop_event` is set when quota hits 0.
+- `GET /api/stream/{sid}` uses `?token=<jwt>` query param (EventSource cannot set headers).
+
 ### Web session model (`web/app.py`)
-`SessionState` dataclass stored in `sessions: dict[str, SessionState]` (in-memory, no DB). Each browser tab gets a UUID `sid` stored in `localStorage`. Sessions are created on first `POST /api/session`.
+`SessionState` dataclass stored in `sessions: dict[str, SessionState]` (in-memory, no DB). Each browser tab gets a UUID `sid` stored in `localStorage`. Sessions are bound to an `owner_id`; other users get 403.
 
 ### API routes
 ```
+POST /api/auth/login         → {token, user}
+GET  /api/me                 → current user info
 POST /api/session            → create/return session
 POST /api/run/{sid}          → start automation (body = RunConfig JSON)
-GET  /api/stream/{sid}       → SSE log stream
+GET  /api/stream/{sid}?token → SSE log stream
 POST /api/stop/{sid}         → stop_event.set() + driver.quit()
 GET  /api/status/{sid}       → {status, progress}
 GET  /api/history/{sid}      → run history
 GET/POST/DELETE /api/profiles/{name}
+GET  /api/admin/users        → list users (admin only, supports ?q=search)
+POST /api/admin/users        → create user
+PUT  /api/admin/users/{uid}  → update quota
+DELETE /api/admin/users/{uid}
 GET  /                       → index.html
 ```
 
@@ -123,5 +149,7 @@ Priority order: `div[role='radiogroup']` (modern Google Forms) → `tr[role='row
 - `is_other_option()` phải gọi trước mọi `random.choice()` trên options.
 - `_is_avoided()` phải gọi sau `is_other_option()` filter.
 - Keyword rule đầu tiên khớp thắng — thứ tự trong `config.keyword_rules` là ưu tiên.
-- `RunConfig` không có `checkbox_min/max` — số lượng checkbox tự tính `randint(1, len//2+1)`.
+- `RunConfig` không có `headless` và không có `checkbox_min/max` — headless do môi trường quyết định, số lượng checkbox tự tính `randint(1, len//2+1)`.
 - Terminal mode (`main.py`) không thay đổi behavior — `run_all()` không có `log_fn` defaults to `console.print`.
+- `quota_fn` chỉ truyền vào web mode (`user["role"] != "admin"`); terminal mode không có quota.
+- Sessions là in-memory — restart server sẽ mất hết sessions.

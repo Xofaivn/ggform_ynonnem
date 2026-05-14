@@ -139,7 +139,7 @@ def _replace_driver(
         except Exception:
             pass
 
-    new_driver = create_driver(headless=config.headless, lang=lang)
+    new_driver = create_driver(lang=lang)
     if driver_ref is not None:
         driver_ref.clear()
         driver_ref.append(new_driver)

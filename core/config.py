@@ -24,7 +24,6 @@ class TextRule:
 class RunConfig:
     form_url: str = ""
     n_submissions: int = 2
-    headless: bool = False
     form_language: str = "auto"       # "auto" | "vi" | "en"
     randomization_level: int = 3      # 1 (luôn theo keyword) → 5 (random hoàn toàn)
     rating_direction: str = "positive" # "positive" | "negative" | "neutral"

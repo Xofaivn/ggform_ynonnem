@@ -155,7 +155,6 @@ def _show_summary(cfg: RunConfig) -> None:
 
     t.add_row("Form URL", cfg.form_url[:70] + ("..." if len(cfg.form_url) > 70 else ""))
     t.add_row("Số lần submit", str(cfg.n_submissions))
-    t.add_row("Headless", "Có (ẩn)" if cfg.headless else "Không (hiện cửa sổ)")
     t.add_row("Ngôn ngữ form", cfg.form_language.upper())
     t.add_row("Randomization level", f"{cfg.randomization_level}/5")
     t.add_row("Hướng rating", cfg.rating_direction)
@@ -188,12 +187,9 @@ def _build_new_config() -> RunConfig:
     # 2. Số lần submit
     n = _ask_int("2. Số lần submit:", default=2, min_val=1)
 
-    # 3. Headless
-    headless = _ask_confirm("3. Chạy ẩn Chrome (headless)?", default=False)
-
-    # 4. Ngôn ngữ form
+    # 3. Ngôn ngữ form
     lang = questionary.select(
-        "4. Ngôn ngữ của form:",
+        "3. Ngôn ngữ của form:",
         choices=[
             questionary.Choice("Tự động phát hiện", value="auto"),
             questionary.Choice("Tiếng Việt", value="vi"),
@@ -201,9 +197,9 @@ def _build_new_config() -> RunConfig:
         ],
     ).ask() or "auto"
 
-    # 5. Randomization level
+    # 4. Randomization level
     rand_level = questionary.select(
-        "5. Mức độ random (1 = theo keyword, 5 = random hoàn toàn):",
+        "4. Mức độ random (1 = theo keyword, 5 = random hoàn toàn):",
         choices=[
             questionary.Choice("1 – Luôn theo keyword (không random)", value=1),
             questionary.Choice("2 – Ưu tiên keyword mạnh (~85%)", value=2),
@@ -213,9 +209,9 @@ def _build_new_config() -> RunConfig:
         ],
     ).ask() or 3
 
-    # 6. Hướng rating
+    # 5. Hướng rating
     rating = questionary.select(
-        "6. Hướng đánh giá (cho Scale/Grid 1–5):",
+        "5. Hướng đánh giá (cho Scale/Grid 1–5):",
         choices=[
             questionary.Choice("Positive — ưu tiên điểm cao (4–5)", value="positive"),
             questionary.Choice("Negative — ưu tiên điểm thấp (1–2)", value="negative"),
@@ -223,26 +219,26 @@ def _build_new_config() -> RunConfig:
         ],
     ).ask() or "positive"
 
-    # 7. Delay
-    console.print("\n7. Delay giữa các lần submit (giây):")
+    # 6. Delay
+    console.print("\n6. Delay giữa các lần submit (giây):")
     delay_min = _ask_float("   Min:", default=1.0, min_val=0.0)
     delay_max = _ask_float("   Max:", default=3.0, min_val=delay_min)
 
-    # 8. Preview mode
-    no_submit = _ask_confirm("8. Preview mode (không submit thật)?", default=False)
+    # 7. Preview mode
+    no_submit = _ask_confirm("7. Preview mode (không submit thật)?", default=False)
 
-    # 9. Date range
-    console.print("\n9. Khoảng ngày cho câu hỏi Date (YYYY-MM-DD):")
+    # 8. Date range
+    console.print("\n8. Khoảng ngày cho câu hỏi Date (YYYY-MM-DD):")
     date_start = _ask("    Từ ngày:", default="2020-01-01")
     date_end = _ask("    Đến ngày:", default="2024-12-31")
 
-    # 10. Keyword rules
+    # 9. Keyword rules
     keyword_rules = _collect_keyword_rules()
 
-    # 11. Text rules
+    # 10. Text rules
     text_rules = _collect_text_rules()
 
-    # 12. Avoid answer keywords
+    # 11. Avoid answer keywords
     console.print("\n[bold yellow]⚙ Né đáp án[/bold yellow] (không bao giờ chọn đáp án chứa các từ này)")
     console.print("  Ví dụ: 'không biết, không có ý kiến, chưa sử dụng'")
     console.print("  → Bất kỳ đáp án nào chứa các từ trên sẽ bị bỏ qua ở MỌI câu hỏi\n")
@@ -254,7 +250,6 @@ def _build_new_config() -> RunConfig:
     return RunConfig(
         form_url=url,
         n_submissions=n,
-        headless=headless,
         form_language=lang,
         randomization_level=rand_level,
         rating_direction=rating,

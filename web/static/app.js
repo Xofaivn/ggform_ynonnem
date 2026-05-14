@@ -268,7 +268,6 @@ function buildConfig() {
   return {
     form_url: $("form_url").value.trim(),
     n_submissions: parseInt($("n_submissions").value, 10) || 1,
-    headless: $("headless").checked,
     form_language: $("form_language").value,
     randomization_level: parseInt($("randomization_level").value, 10) || 3,
     rating_direction: $("rating_direction").value,
@@ -286,7 +285,6 @@ function buildConfig() {
 function loadConfigIntoForm(config) {
   $("form_url").value = config.form_url || "";
   $("n_submissions").value = config.n_submissions || 1;
-  $("headless").checked = Boolean(config.headless);
   $("form_language").value = config.form_language || "auto";
   $("randomization_level").value = config.randomization_level || 3;
   $("randomization_level_val").textContent = $("randomization_level").value;
@@ -306,7 +304,6 @@ function loadConfigIntoForm(config) {
 function resetConfig() {
   $("form_url").value = "";
   $("n_submissions").value = 2;
-  $("headless").checked = false;
   $("form_language").value = "auto";
   $("randomization_level").value = 3;
   $("randomization_level_val").textContent = "3";
